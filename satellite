@@ -1,0 +1,94 @@
+clc;
+clear all;
+% Initial State vectors of Satellite A and B
+RA0 = [-6045,  -3490, 2500];     % [km]
+VA0 = [-3.457, 6.618, 2.533];     % [km/s]
+RB0 = [2500, 16000, 4000];     % [km]
+VB0 = [0.4589, -4.464, -5.4107];    % [km/s]
+mu  = 398600;            % Earth’s gravitational parameter [km^3/s^2]
+t   = 0;                 % initial time
+dt  = 30;                % Simulation time step [s]
+dT  = 5*24*3600;         % Simulation interval  [s]
+% Using fourth-order Runge–Kutta method to solve fundamental equation of relative two-body motion
+F_r = @(R) -mu/(norm(R)^3)*R;
+VA = VA0; RA  = RA0;
+VB = VB0; RB  = RB0;
+ind = 1;
+while (t <= dT)
+    % Relative position
+    hA = cross(RA, VA);     % Angular momentum of A
+    % Unit vectors i, j,k of the comoving frame
+    i = RA/norm(RA);  k = hA/norm(hA); j = cross(k,i);
+    % Transformation matrix Qxx:
+    QXx   = [i; j; k];
+    Om    = hA/norm(RA)^2;
+    Om_dt = -2*VA*RA'/norm(RA)^2.*Om;
+    % Accelerations of A and B,inertial frame
+    aA = -mu*RA/norm(RA)^3;
+    aB = -mu*RB/norm(RB)^3;
+    % Relative position,inertial frame
+    Rr = RB - RA;
+    % Relative position,LVLH frame attached to A
+    R_BA(ind,:) = QXx*Rr';
+
+    % A Satellite
+    k_1 = dt*F_r(RA);  k_2 = dt*F_r(RA+0.5*k_1);
+    k_3 = dt*F_r(RA+0.5*k_2);  k_4 = dt*F_r(RA+k_3);
+    VA  = VA + (1/6)*(k_1+2*k_2+2*k_3+k_4);
+    RA  = RA + VA*dt;
+    % B Satellite
+    k_1 = dt*F_r(RB);  k_2 = dt*F_r(RB+0.5*k_1);
+    k_3 = dt*F_r(RB+0.5*k_2);     k_4 = dt*F_r(RB+k_3);
+    VB = VB + (1/6)*(k_1+2*k_2+2*k_3+k_4);
+    RB  = RB + VB*dt;
+
+    R_A(ind,:)  = RA;
+    R_B(ind,:)  = RB;
+    time(ind)   = t;
+    t   = t+dt;
+    ind = ind+1;
+end
+r_BA = (R_BA(:,1).^2+R_BA(:,2).^2+R_BA(:,3).^2).^0.5;
+close all;
+figure(1);
+hold on;
+plot3(R_A(:,1),R_A(:,2),R_A(:,3),'r');
+plot3(R_B(:,1),R_B(:,2),R_B(:,3),'y');
+title('Satellites orbits around earth');
+legend('Satellite A','Satellites B');
+xlabel('km');ylabel('km');
+% Plotting Earth
+load('topo.mat','topo','topomap1');
+colormap(topomap1);
+% Create the surface.
+radius_earth=6378;
+[x,y,z] = sphere(50);
+x =radius_earth*x;
+y =radius_earth*y;
+z =radius_earth*z;
+props.AmbientStrength = 0.1;
+props.DiffuseStrength = 1;
+props.SpecularColorReflectance = .5;
+props.SpecularExponent = 20;
+props.SpecularStrength = 1;
+props.FaceColor= 'texture';
+props.EdgeColor = 'none';
+props.FaceLighting = 'phong';
+props.Cdata = topo;
+surface(x,y,z,props);
+hold off;
+
+figure(2);
+plot3(R_BA(:,1),R_BA(:,2),R_BA(:,3),'k');
+title('The trajectory of spacecraft B relative to spacecraft A');
+xlabel('km');ylabel('km');zlabel('km');
+
+figure(3);
+plot(time/3600,r_BA);
+title('Distance between two satellites');
+xlabel('hour');ylabel('km')
+
+min_r = min(r_BA);
+max_r = max(r_BA);
+fprintf('Max distance between two satellites %6.4f km \n',max_r);
+fprintf('Min distance between two satellites %6.4f km \n',min_r);
